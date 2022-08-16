@@ -1,0 +1,13 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "demo"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-lx7xbyel3adq"
+s3_prefix = "demo"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "Environment=\"dev\" SourceBucketName=\"src8371036\" QueueName=\"test\" DestinationBucketName=\"dest8371036\""
+image_repositories = []

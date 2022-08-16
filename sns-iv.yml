@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: aws-s3-sqs-lambda
+
+
+Resources:
+
+
+### S3
+  S3FileBucket:
+    Type: AWS::S3::Bucket
+    DependsOn:
+      - SNSTopicPolicy
+      - AuditQueue
+    Properties:
+      BucketName: test8371036
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Topic: !Ref AuditSNSTopic
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: '.jpg'
+
+  DestinationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: test8371036-resized
+
+### SNS
+  AuditSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: AuditSNSTopic
+      Subscription:
+        - Protocol: sqs
+          Endpoint: !GetAtt AuditQueue.Arn
+
+### SQS
+  AuditQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: AuditQueue
+
+###Policies
+  SNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 's3.amazonaws.com'
+            Action: sns:Publish
+            Resource: !Ref AuditSNSTopic
+      Topics:
+        - !Ref AuditSNSTopic
+
+  SnsToSqsPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "Allow SNS publish to SQS"
+            Effect: Allow
+            Principal:
+              Service: "sns.amazonaws.com"
+            Resource: !GetAtt AuditQueue.Arn
+            Action: SQS:SendMessage
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref AuditSNSTopic
+      Queues:
+        - Ref: AuditQueue
+
+  
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+        - PolicyName: allowLambdaLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - logs:*
+              Resource: arn:aws:logs:*:*:*
+        - PolicyName: allowSqs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sqs:ReceiveMessage
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+              Resource: !GetAtt AuditQueue.Arn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Path: /
+
+
+  # HelloLambdaFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: HelloLambdaFunction
+  #     Role: !GetAtt LambdaExecutionRole.Arn
+  #     Runtime: python3.7
+  #     Handler: index.handler
+  #     Code:
+  #       ZipFile: |
+  #          def handler(event, context):
+  #             print(event)
+  #             message = "Hello Lambda World !"
+  #             return message
+
+
+  SQSInvokeFileAuditLambda:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref FileAudit
+      Principal: sqs.amazonaws.com
+
+### Lambda Function
+  FileAudit:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: FileAudit
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.7
+      Handler: CreateThumbnail.handler
+      CodeUri: s3://demobucket8371036/CreateThumbnail.zip
+
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 10
+      Enabled: true
+      EventSourceArn: !GetAtt AuditQueue.Arn
+      FunctionName: !GetAtt FileAudit.Arn
+
+
+
+# 75431f0051903708b616ec6541222e0b5900bc5e

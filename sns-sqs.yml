@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Sample SAM Template SNS and SQS
+
+Parameters:
+  Environment:
+    Type: String
+    Description: example, staging
+Resources:
+  MyQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${Environment}-my-queue.fifo"
+      FifoQueue: true
+  MyTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      ContentBasedDeduplication: true
+      FifoTopic: true
+      Subscription:
+        - Endpoint:
+            Fn::GetAtt:
+              - MyQueue
+              - Arn
+          Protocol: sqs
+      TopicName: !Sub "${Environment}-my-topic.fifo"
+  MyQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    DependsOn:
+      - MyQueue
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "events.amazonaws.com"
+                - "sqs.amazonaws.com"
+                - "sns.amazonaws.com"
+            Action:
+              - "sqs:SendMessage"
+              - "sqs:ReceiveMessage"
+            Resource:
+              Fn::GetAtt:
+                - MyQueue
+                - Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn:
+                  Ref: MyTopic
+      Queues:
+        - Ref: MyQueue
+Outputs:
+  MyTopicTopicARN:
+    Value:
+      Ref: MyTopic
+  MyQueue:
+    Value:
+      Fn::Join:
+        - " "
+        - - 'ARN:'
+          - Fn::GetAtt:
+              - MyQueue
+              - Arn
+          - 'URL:'
+          - Ref: MyQueue
