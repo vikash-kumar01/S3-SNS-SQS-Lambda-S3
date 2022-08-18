@@ -1,3 +1,6 @@
+![image](https://user-images.githubusercontent.com/35370115/185320709-2ce7c4d2-6dc6-4d45-8bf7-05439de82f39.png)
+
+
 # AWS Amazon S3 to SQS to AWS Lambda - Create a Lambda function that resizes images uploaded to S3 using SQS as a notification target
 
 The SAM template deploys a Lambda function, an SQS queue, 2 S3 buckets and the IAM resources required to run the application. An SQS Queue consumes <code>ObjectCreated</code> events from an Amazon S3 bucket if the file has .jpg extension. The SQS triggers a Lambda function. The Lambda code checks the uploaded file is an image and creates a thumbnail version of the image in another bucket.
